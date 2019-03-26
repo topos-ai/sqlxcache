@@ -259,7 +259,7 @@ func (tx *Tx) GetContext(ctx context.Context, dest interface{}, query string, ar
 	return tx.tx.StmtxContext(ctx, stmt).GetContext(ctx, dest, args...)
 }
 
-func (tx *Tx) GetNamed(dest interface{}, query string, arg interface{}) error {
+func (tx *Tx) NamedGet(dest interface{}, query string, arg interface{}) error {
 	namedStmt, err := tx.c.namedStmt(query)
 	if err != nil {
 		return err
@@ -268,7 +268,7 @@ func (tx *Tx) GetNamed(dest interface{}, query string, arg interface{}) error {
 	return tx.tx.NamedStmt(namedStmt).Get(dest, arg)
 }
 
-func (tx *Tx) GetNamedContext(ctx context.Context, dest interface{}, query string, arg interface{}) error {
+func (tx *Tx) NamedGetContext(ctx context.Context, dest interface{}, query string, arg interface{}) error {
 	namedStmt, err := tx.c.namedStmtContext(ctx, query)
 	if err != nil {
 		return err
