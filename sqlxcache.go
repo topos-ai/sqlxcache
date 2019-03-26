@@ -121,6 +121,18 @@ func (c *Cache) Begin() (*Tx, error) {
 	}, nil
 }
 
+func (c *Cache) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
+	tx, err := c.db.BeginTxx(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Tx{
+		c:  c,
+		tx: tx,
+	}, nil
+}
+
 func (tx *Tx) Exec(query string, args ...interface{}) (sql.Result, error) {
 	stmt, err := tx.c.stmt(query)
 	if err != nil {
