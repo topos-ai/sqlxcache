@@ -105,8 +105,10 @@ func Open(driverName, dataSourceName string) (*Cache, error) {
 }
 
 type Tx struct {
-	c  *Cache
-	tx *sqlx.Tx
+	c          *Cache
+	tx         *sqlx.Tx
+	stmts      map[string]*sqlx.Stmt
+	namedStmts map[string]*sqlx.NamedStmt
 }
 
 func (c *Cache) Begin() (*Tx, error) {
@@ -116,8 +118,10 @@ func (c *Cache) Begin() (*Tx, error) {
 	}
 
 	return &Tx{
-		c:  c,
-		tx: tx,
+		c:          c,
+		tx:         tx,
+		stmts:      map[string]*sqlx.Stmt{},
+		namedStmts: map[string]*sqlx.NamedStmt{},
 	}, nil
 }
 
@@ -128,139 +132,205 @@ func (c *Cache) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
 	}
 
 	return &Tx{
-		c:  c,
-		tx: tx,
+		c:          c,
+		tx:         tx,
+		stmts:      map[string]*sqlx.Stmt{},
+		namedStmts: map[string]*sqlx.NamedStmt{},
 	}, nil
 }
 
-func (tx *Tx) Exec(query string, args ...interface{}) (sql.Result, error) {
-	stmt, err := tx.c.stmt(query)
+func (tx *Tx) stmt(query string) (*sqlx.Stmt, error) {
+	stmt, ok := tx.stmts[query]
+	if ok {
+		return stmt, nil
+	}
+
+	cachedStmt, err := tx.stmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.Stmtx(stmt).Exec(args...)
+	stmt = tx.tx.Stmtx(cachedStmt)
+	tx.stmts[query] = stmt
+	return stmt, nil
+}
+
+func (tx *Tx) stmtContext(ctx context.Context, query string) (*sqlx.Stmt, error) {
+	stmt, ok := tx.stmts[query]
+	if ok {
+		return stmt, nil
+	}
+
+	cachedStmt, err := tx.c.stmtContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	stmt = tx.tx.StmtxContext(ctx, cachedStmt)
+	tx.stmts[query] = stmt
+	return stmt, nil
+}
+
+func (tx *Tx) namedStmt(query string) (*sqlx.NamedStmt, error) {
+	namedStmt, ok := tx.namedStmts[query]
+	if ok {
+		return namedStmt, nil
+	}
+
+	cachedNamedStmt, err := tx.c.namedStmt(query)
+	if err != nil {
+		return nil, err
+	}
+
+	namedStmt = tx.tx.NamedStmt(cachedNamedStmt)
+	tx.namedStmts[query] = namedStmt
+	return namedStmt, nil
+}
+
+func (tx *Tx) namedStmtContext(ctx context.Context, query string) (*sqlx.NamedStmt, error) {
+	namedStmt, ok := tx.namedStmts[query]
+	if ok {
+		return namedStmt, nil
+	}
+
+	cachedNamedStmt, err := tx.namedStmtContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	namedStmt = tx.tx.NamedStmtContext(ctx, cachedNamedStmt)
+	tx.namedStmts[query] = namedStmt
+	return namedStmt, nil
+}
+
+func (tx *Tx) Exec(query string, args ...interface{}) (sql.Result, error) {
+	stmt, err := tx.stmt(query)
+	if err != nil {
+		return nil, err
+	}
+
+	return stmt.Exec(args...)
 }
 
 func (tx *Tx) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	stmt, err := tx.c.stmtContext(ctx, query)
+	stmt, err := tx.stmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.StmtxContext(ctx, stmt).ExecContext(ctx, args...)
+	return stmt.ExecContext(ctx, args...)
 }
 
 func (tx *Tx) NamedExec(query string, arg interface{}) (sql.Result, error) {
-	namedStmt, err := tx.c.namedStmt(query)
+	namedStmt, err := tx.namedStmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.NamedStmt(namedStmt).Exec(arg)
+	return namedStmt.Exec(arg)
 }
 
 func (tx *Tx) NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
-	namedStmt, err := tx.c.namedStmtContext(ctx, query)
+	namedStmt, err := tx.namedStmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.NamedStmtContext(ctx, namedStmt).ExecContext(ctx, arg)
+	return namedStmt.ExecContext(ctx, arg)
 }
 
 func (tx *Tx) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	stmt, err := tx.c.stmt(query)
+	stmt, err := tx.stmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.Stmtx(stmt).Query(args...)
+	return stmt.Query(args...)
 }
 
 func (tx *Tx) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
-	stmt, err := tx.c.stmtContext(ctx, query)
+	stmt, err := tx.stmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.StmtxContext(ctx, stmt).QueryContext(ctx, args...)
+	return stmt.QueryContext(ctx, args...)
 }
 
 func (tx *Tx) NamedQuery(query string, arg interface{}) (*sql.Rows, error) {
-	namedStmt, err := tx.c.namedStmt(query)
+	namedStmt, err := tx.namedStmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.Stmtx(namedStmt).Query(arg)
+	return namedStmt.Query(arg)
 }
 
 func (tx *Tx) NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sql.Rows, error) {
-	namedStmt, err := tx.c.namedStmtContext(ctx, query)
+	namedStmt, err := tx.namedStmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.StmtxContext(ctx, namedStmt).QueryContext(ctx, arg)
+	return namedStmt.QueryContext(ctx, arg)
 }
 
 func (tx *Tx) Queryx(query string, args ...interface{}) (*sqlx.Rows, error) {
-	stmt, err := tx.c.stmt(query)
+	stmt, err := tx.stmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.Stmtx(stmt).Queryx(args...)
+	return stmt.Queryx(args...)
 }
 
 func (tx *Tx) QueryxContext(ctx context.Context, query string, args ...interface{}) (*sqlx.Rows, error) {
-	stmt, err := tx.c.stmtContext(ctx, query)
+	stmt, err := tx.stmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.StmtxContext(ctx, stmt).QueryxContext(ctx, args...)
+	return stmt.QueryxContext(ctx, args...)
 }
 
 func (tx *Tx) NamedQueryx(query string, arg interface{}) (*sqlx.Rows, error) {
-	namedStmt, err := tx.c.namedStmt(query)
+	namedStmt, err := tx.namedStmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.Stmtx(namedStmt).Queryx(arg)
+	return namedStmt.Queryx(arg)
 }
 
 func (tx *Tx) NamedQueryxContext(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error) {
-	namedStmt, err := tx.c.namedStmtContext(ctx, query)
+	namedStmt, err := tx.namedStmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return tx.tx.StmtxContext(ctx, namedStmt).QueryxContext(ctx, arg)
+	return namedStmt.QueryxContext(ctx, arg)
 }
 
 func (tx *Tx) Get(dest interface{}, query string, args ...interface{}) error {
-	stmt, err := tx.c.stmt(query)
+	stmt, err := tx.stmt(query)
 	if err != nil {
 		return err
 	}
 
-	return tx.tx.Stmtx(stmt).Get(dest, args...)
+	return stmt.Get(dest, args...)
 }
 
 func (tx *Tx) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	stmt, err := tx.c.stmtContext(ctx, query)
+	stmt, err := tx.stmtContext(ctx, query)
 	if err != nil {
 		return err
 	}
 
-	return tx.tx.StmtxContext(ctx, stmt).GetContext(ctx, dest, args...)
+	return stmt.GetContext(ctx, dest, args...)
 }
 
 func (tx *Tx) NamedGet(dest interface{}, query string, arg interface{}) error {
-	namedStmt, err := tx.c.namedStmt(query)
+	namedStmt, err := tx.namedStmt(query)
 	if err != nil {
 		return err
 	}
@@ -269,7 +339,7 @@ func (tx *Tx) NamedGet(dest interface{}, query string, arg interface{}) error {
 }
 
 func (tx *Tx) NamedGetContext(ctx context.Context, dest interface{}, query string, arg interface{}) error {
-	namedStmt, err := tx.c.namedStmtContext(ctx, query)
+	namedStmt, err := tx.namedStmtContext(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -278,25 +348,25 @@ func (tx *Tx) NamedGetContext(ctx context.Context, dest interface{}, query strin
 }
 
 func (tx *Tx) Select(dest interface{}, query string, args ...interface{}) error {
-	stmt, err := tx.c.stmt(query)
+	stmt, err := tx.stmt(query)
 	if err != nil {
 		return err
 	}
 
-	return tx.tx.Stmtx(stmt).Select(dest, args...)
+	return stmt.Select(dest, args...)
 }
 
 func (tx *Tx) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
-	stmt, err := tx.c.stmtContext(ctx, query)
+	stmt, err := tx.stmtContext(ctx, query)
 	if err != nil {
 		return err
 	}
 
-	return tx.tx.StmtxContext(ctx, stmt).SelectContext(ctx, dest, args...)
+	return stmt.SelectContext(ctx, dest, args...)
 }
 
 func (tx *Tx) NamedSelect(dest interface{}, query string, arg interface{}) error {
-	namedStmt, err := tx.c.namedStmt(query)
+	namedStmt, err := tx.namedStmt(query)
 	if err != nil {
 		return err
 	}
@@ -305,7 +375,7 @@ func (tx *Tx) NamedSelect(dest interface{}, query string, arg interface{}) error
 }
 
 func (tx *Tx) NamedSelectContext(ctx context.Context, dest interface{}, query string, arg interface{}) error {
-	namedStmt, err := tx.c.namedStmtContext(ctx, query)
+	namedStmt, err := tx.namedStmtContext(ctx, query)
 	if err != nil {
 		return err
 	}
