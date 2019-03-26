@@ -145,7 +145,7 @@ func (tx *Tx) stmt(query string) (*sqlx.Stmt, error) {
 		return stmt, nil
 	}
 
-	cachedStmt, err := tx.stmt(query)
+	cachedStmt, err := tx.c.stmt(query)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (tx *Tx) namedStmtContext(ctx context.Context, query string) (*sqlx.NamedSt
 		return namedStmt, nil
 	}
 
-	cachedNamedStmt, err := tx.namedStmtContext(ctx, query)
+	cachedNamedStmt, err := tx.c.namedStmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
