@@ -311,6 +311,42 @@ func (tx *Tx) NamedQueryxContext(ctx context.Context, query string, arg interfac
 	return namedStmt.QueryxContext(ctx, arg)
 }
 
+func (tx *Tx) QueryxRow(query string, args ...interface{}) (*sqlx.Row, error) {
+	stmt, err := tx.stmt(query)
+	if err != nil {
+		return nil, err
+	}
+
+	return stmt.QueryRowx(args...), nil
+}
+
+func (tx *Tx) QueryRowxContext(ctx context.Context, query string, args ...interface{}) (*sqlx.Row, error) {
+	stmt, err := tx.stmtContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return stmt.QueryRowxContext(ctx, args...), nil
+}
+
+func (tx *Tx) NamedQueryRow(query string, arg interface{}) (*sqlx.Row, error) {
+	namedStmt, err := tx.namedStmt(query)
+	if err != nil {
+		return nil, err
+	}
+
+	return namedStmt.QueryRow(arg), nil
+}
+
+func (tx *Tx) NamedQueryRowContext(ctx context.Context, query string, arg interface{}) (*sqlx.Row, error) {
+	namedStmt, err := tx.namedStmtContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return namedStmt.QueryRowContext(ctx, arg), nil
+}
+
 func (tx *Tx) Get(dest interface{}, query string, args ...interface{}) error {
 	stmt, err := tx.stmt(query)
 	if err != nil {
