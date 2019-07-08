@@ -517,40 +517,40 @@ func (c *Cache) NamedQueryRowContext(ctx context.Context, query string, arg inte
 	return namedStmt.QueryRowContext(ctx, arg), nil
 }
 
-func (c *Cache) Query(query string, arg interface{}) (*sql.Rows, error) {
+func (c *Cache) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	stmt, err := c.stmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return stmt.Query(arg)
+	return stmt.Query(args...)
 }
 
-func (c *Cache) QueryContext(ctx context.Context, query string, arg interface{}) (*sql.Rows, error) {
+func (c *Cache) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	stmt, err := c.stmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return stmt.QueryContext(ctx, arg)
+	return stmt.QueryContext(ctx, args...)
 }
 
-func (c *Cache) NamedQuery(query string, arg interface{}) (*sqlx.Rows, error) {
+func (c *Cache) NamedQuery(query string, arg interface{}) (*sql.Rows, error) {
 	namedStmt, err := c.namedStmt(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return namedStmt.Queryx(arg)
+	return namedStmt.Query(arg)
 }
 
-func (c *Cache) NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sqlx.Rows, error) {
+func (c *Cache) NamedQueryContext(ctx context.Context, query string, arg interface{}) (*sql.Rows, error) {
 	namedStmt, err := c.namedStmtContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return namedStmt.QueryxContext(ctx, arg)
+	return namedStmt.QueryContext(ctx, arg)
 }
 
 func (c *Cache) Queryx(query string, args ...interface{}) (*sqlx.Rows, error) {
