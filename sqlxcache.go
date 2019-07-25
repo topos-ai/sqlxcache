@@ -139,6 +139,10 @@ func (c *Cache) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
 	}, nil
 }
 
+func (tx *Tx) Tx() *sqlx.Tx {
+	return tx.tx
+}
+
 func (tx *Tx) stmt(query string) (*sqlx.Stmt, error) {
 	stmt, ok := tx.stmts[query]
 	if ok {
